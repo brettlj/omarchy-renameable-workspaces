@@ -42,9 +42,30 @@ to
   - Type a name and press **Enter** or click **Save** to rename it.
   - Click **Reset** (or save an empty field) to go back to the plain number.
   - Press **Escape** or click outside the popup to cancel without changes.
+  - **Show workspace number** (on by default) prefixes that workspace's name
+    with its number (`4 Dev`). The number is dimmed and sits closer to its name
+    than to the next workspace. Each workspace has its own setting; it is
+    applied on **Save**, and **Reset** turns it back on.
 
 Names are stored in `~/.local/state/omarchy/settings/workspace-names.json`,
 keyed by workspace number.
+
+## Settings
+
+Settings live on the widget's entry in `~/.config/omarchy/shell.json` and
+hot-reload on save:
+
+```json
+{
+  "id": "bpbagayas.renameable-workspaces",
+  "hiddenNumbers": [3, 6],
+  "numberOpacity": 0.5
+}
+```
+
+- `hiddenNumbers` (default `[]`): workspaces whose number is hidden; set by
+  the popup checkbox.
+- `numberOpacity` (default `0.5`): opacity of the number prefix, `0`-`1`.
 
 ## Removal
 

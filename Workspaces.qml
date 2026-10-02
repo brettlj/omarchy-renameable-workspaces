@@ -75,9 +75,34 @@ BarWidget {
     onFileChanged: reload()
   }
 
+  // ---- Number prefix. Both values live inline on this widget's shell.json
+  //      entry. Numbers show by default; hiddenNumbers lists the workspaces
+  //      whose number was switched off from the rename popup.
+  readonly property var hiddenNumbers: setting("hiddenNumbers", [])
+  readonly property real numberOpacity: Number(setting("numberOpacity", 0.5))
+
+  function numberLabel(id) {
+    return id === 10 ? "0" : String(id)
+  }
+
+  function showsNumber(id) {
+    return root.hiddenNumbers.indexOf(id) === -1
+  }
+
+  function setShowNumber(id, show) {
+    if (root.showsNumber(id) === show) return
+    var hidden = root.hiddenNumbers.filter(function(other) { return other !== id })
+    if (!show) hidden.push(id)
+    var entry = Object.assign({}, root.settings)
+    entry.hiddenNumbers = hidden
+    root.settings = entry
+    if (root.bar && root.bar.shell) root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
   property int renameWorkspaceId: -1
   property var renameAnchorItem: null
   property bool renamePopupOpen: false
+  property bool renameShowNumber: true
 
   function close() { renamePopupOpen = false }
 
@@ -93,6 +118,7 @@ BarWidget {
   function beginRename(id, anchorItem) {
     renameWorkspaceId = id
     renameAnchorItem = anchorItem
+    renameShowNumber = showsNumber(id)
     renamePopupOpen = true
     Qt.callLater(function() {
       renameField.text = root.nameFor(id)
@@ -103,11 +129,13 @@ BarWidget {
 
   function commitRename() {
     root.setName(root.renameWorkspaceId, renameField.text.trim())
+    root.setShowNumber(root.renameWorkspaceId, root.renameShowNumber)
     root.close()
   }
 
   function resetRename() {
     root.setName(root.renameWorkspaceId, "")
+    root.setShowNumber(root.renameWorkspaceId, true)
     root.close()
   }
 
@@ -135,6 +163,8 @@ BarWidget {
         readonly property bool occupied: workspace !== null && workspace.toplevels.values.length > 0
         readonly property bool focused: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData
         readonly property string customName: root.nameFor(modelData)
+        readonly property bool numbered: root.showsNumber(modelData) && !root.vertical && customName !== ""
+        readonly property color textColor: focused ? Color.accent : root.bar.barForeground
 
         implicitWidth: workspaceButton.implicitWidth
         implicitHeight: workspaceButton.implicitHeight
@@ -151,18 +181,48 @@ BarWidget {
           anchors.fill: parent
 
           bar: root.bar
-          text: cell.customName !== "" ? cell.customName : (cell.modelData === 10 ? "0" : String(cell.modelData))
+          text: cell.customName !== "" ? cell.customName : root.numberLabel(cell.modelData)
+          labelVisible: !cell.numbered
           tooltipText: cell.customName !== "" ? cell.customName : "Right-click to rename"
           active: cell.focused
           activeColor: Color.accent
           opacity: cell.occupied || cell.focused ? 1 : 0.5
           horizontalMargin: 6
           verticalPadding: 6
-          fixedWidth: root.vertical ? root.barSize : (cell.customName !== "" ? -1 : Style.space(20))
+          fixedWidth: root.vertical ? root.barSize
+            : cell.numbered ? numberedLabel.implicitWidth + scaledHorizontalMargin * 2
+            : (cell.customName !== "" ? -1 : Style.space(20))
           fixedHeight: root.barSize
           onPressed: function(button) {
             if (button === Qt.RightButton) root.openRename(cell.modelData, workspaceButton)
             else root.focusWorkspace(cell.modelData)
+          }
+        }
+
+        // "<number> <name>" label. The inner gap is tighter than the gap
+        // between workspaces so the number reads as part of its name.
+        Row {
+          id: numberedLabel
+          anchors.centerIn: parent
+          visible: cell.numbered
+          opacity: workspaceButton.opacity
+          spacing: Style.spaceReal(3)
+
+          Text {
+            text: root.numberLabel(cell.modelData)
+            opacity: root.numberOpacity
+            color: cell.textColor
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.body
+            renderType: Text.NativeRendering
+          }
+          Text {
+            textFormat: Text.PlainText
+            text: cell.customName
+            color: cell.textColor
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.body
+            renderType: Text.NativeRendering
           }
         }
       }
@@ -206,6 +266,48 @@ BarWidget {
             root.commitRename()
             event.accepted = true
           }
+        }
+      }
+
+      Item {
+        width: showNumbersRow.implicitWidth
+        height: showNumbersRow.implicitHeight
+
+        Row {
+          id: showNumbersRow
+          spacing: Style.space(8)
+
+          Rectangle {
+            width: Style.space(14)
+            height: width
+            anchors.verticalCenter: parent.verticalCenter
+            radius: Style.cornerRadius > 0 ? 3 : 0
+            color: root.renameShowNumber ? Color.accent : "transparent"
+            border.width: 1
+            border.color: root.renameShowNumber ? Color.accent : root.bar.foreground
+
+            Text {
+              anchors.centerIn: parent
+              visible: root.renameShowNumber
+              text: "✓"
+              color: root.bar.background
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+            }
+          }
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Show workspace number"
+            color: root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.renameShowNumber = !root.renameShowNumber
         }
       }
 
